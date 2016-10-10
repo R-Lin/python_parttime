@@ -21,7 +21,7 @@ class FileHandle:
         tk.Button(new_frame, text=u'浏览', command=self.browser_file).grid(row=0, column=3, columnspan=3)
         self.file_chose = tk.Label(self.root, text=u'已选择文件: 尚未选择文件')
         self.file_chose.grid(row=3, sticky=tk.W)
-        tk.Label(self.root, text='-' * 100).grid(row=4, column=0, sticky=tk.W)
+        tk.Label(self.root, text='-' * 110).grid(row=4, column=0, sticky=tk.W)
 
         # 拨号
         new_frame2 = tk.Frame(self.root)
@@ -33,28 +33,32 @@ class FileHandle:
         self.num1 = tk.StringVar()
         self.passue = tk.StringVar()
         self.num2 = tk.StringVar()
-        self.dial = tk.StringVar()
+        self.wait_dial = tk.StringVar()
 
         tk.Label(new_frame2, text=u'账号: ').grid(row=1, column=0, sticky=tk.W)
         tk.Entry(new_frame2, textvariable=self.username).grid(row=1, column=1, sticky=tk.W)
         tk.Label(new_frame2, text=u'  每操作(个): ').grid(row=1, column=3, sticky=tk.W)
         tk.Entry(new_frame2, textvariable=self.num1, width=3).grid(row=1, column=4, sticky=tk.W)
-        tk.Label(new_frame2, text=u'  暂停(秒): ').grid(row=1, column=5, sticky=tk.W)
+        self.num1.set(10)
+        tk.Label(new_frame2, text=u'   每条线程暂停登陆(秒): ').grid(row=1, column=5, sticky=tk.W)
         tk.Entry(new_frame2, textvariable=self.passue, width=4).grid(row=1, column=6, sticky=tk.W)
+        self.passue.set(3)
 
         tk.Label(new_frame2, text=u'密码: ').grid(row=2, column=0, sticky=tk.W)
         tk.Entry(new_frame2, textvariable=self.passwd).grid(row=2, column=1, sticky=tk.W)
         tk.Label(new_frame2, text=u'  每操作(个): ').grid(row=2, column=3, sticky=tk.W)
         tk.Entry(new_frame2, textvariable=self.num2, width=3).grid(row=2, column=4, sticky=tk.W)
-        tk.Label(new_frame2, text=u'  拨号(秒): ').grid(row=2, column=5, sticky=tk.W)
-        tk.Entry(new_frame2, textvariable=self.dial, width=4).grid(row=2, column=6, sticky=tk.W)
+        self.num2.set(50)
+        tk.Label(new_frame2, text=u'  断开并重新拨号等待(秒): ').grid(row=2, column=5, sticky=tk.W)
+        tk.Entry(new_frame2, textvariable=self.wait_dial, width=4).grid(row=2, column=6, sticky=tk.W)
+        self.wait_dial.set(5)
         tk.Button(new_frame2, text=u'拨号', font=ft, command=self.dial_call).grid(row=1, column=7, rowspan=2, columnspan=2, sticky=tk.W)
 
         # # 分隔符相关
-        self.thrading_num = tk.StringVar()
+        self.threading_num = tk.StringVar()
         self.delimiter = tk.StringVar()
 
-        tk.Label(self.root, text='-' * 100).grid(row=7, sticky=tk.W)
+        tk.Label(self.root, text='-' * 110).grid(row=7, sticky=tk.W)
         tk.Label(self.root, text=u'处理规则', font=ft).grid(column=0, columnspan=3, sticky=tk.W)
 
         new_frame3 = tk.Frame(self.root)
@@ -66,40 +70,62 @@ class FileHandle:
             width=10
         ).grid(row=2, column=1, sticky=tk.W)
         tk.Label(new_frame3, text=u'   设置线程数:  ').grid(row=2, column=2, sticky=tk.W)
-        tk.Entry(new_frame3,  textvariable=self.thrading_num, width=3).grid(row=2, column=4, sticky=tk.W)
-        tk.Button(new_frame3, text=u'执行', font=ft).grid(row=2, column=6, sticky=tk.E)
+        tk.Entry(new_frame3,  textvariable=self.threading_num, width=3).grid(row=2, column=4, sticky=tk.W)
+        self.threading_num.set(5)
+        tk.Label(new_frame3, text=u'  ').grid(row=2, column=5, sticky=tk.W)
+        tk.Button(new_frame3, text=u'执行', command=self.test, font=ft).grid(row=2, column=6, sticky=tk.E)
 
-        # tk.Label(new_frame2, text=u'替换成').grid(row=0, column=2, sticky=tk.W)
-        # # tk.Entry(new_frame2, textvariable=self.after_delimiter).grid(row=0, column=3, sticky=tk.W)
-        # # tk.Checkbutton(new_frame2, text=u'增加邮箱后缀', variable=self.email_suffix_check).grid(row=1, column=0, sticky=tk.W)
-        # # tk.Entry(new_frame2, textvariable=self.email_suffix).grid(row=1, column=1, sticky=tk.W)
-        # self.delimiter = tk.StringVar()
-        #
-        # # 检查功能相关
-        # self.check_emil = tk.IntVar()
-        # self.check_pass_len = tk.IntVar()
-        # self.pass_len = tk.StringVar()
-        #
-        # new_frame3 = tk.Frame(self.root)
-        # new_frame3.grid(row=7, sticky=tk.W)
-        #
-        # new_frame4 = tk.Frame(self.root)
-        # new_frame4.grid(row=8, sticky=tk.W)
-        #
-        # # 执行
-        # tk.Button(new_frame4, text=u'执行', font=ft, command=self.run).grid(sticky=tk.W)
-        # self.proses = tk.Label(new_frame4, text=u'')
-        # self.proses.grid(row=5, column=1, sticky=tk.W)
-        # self.proses['text'] = '123'
+        tk.Label(self.root, text='-' * 110).grid(row=10, sticky=tk.W)
+        self.tb = tk.Text(self.root)
+        self.tb.grid(row=11, sticky=tk.W)
+
+        new_frame4 = tk.Frame(self.root)
+        new_frame4.grid(row=12, sticky=tk.W)
+        self.line_num = tk.Label(new_frame4, text=u'文件总数: 0 |  ')
+        self.line_num.grid(row=0, column=0, sticky=tk.W)
+
+        self.write_num = tk.Label(new_frame4, text=u'已写入: 0  | ')
+        self.write_num.grid(row=0, column=1, sticky=tk.W)
+        self.right_file = tk.Label(new_frame4, text=u'可登录报错:   | ')
+        self.right_file.grid(row=0, column=2, sticky=tk.W)
+        self.wrong_file = tk.Label(new_frame4, text=u'错误结果保存:    ')
+        self.wrong_file.grid(row=0, column=3, sticky=tk.W)
 
     def dial_call(self):
         self.ip_set['text'] = u'拨号设置:有啦, 你这傻逼'
+
+    def form_check(self):
+        if not self.read_file:
+            tkMessageBox.showerror(message=u'请选择文件')
+            return 0
+        elif not self.username.get():
+            tkMessageBox.showerror(message=u'账号不能为空')
+            return 0
+        elif not self.passwd.get():
+            tkMessageBox.showerror(message=u'密码不能为空')
+            return 0
+        elif not self.delimiter.get():
+            tkMessageBox.showerror(message=u'分割符为空')
+            return 0
+        else:
+            rtc = 1
+        return rtc
 
     def browser_file(self):
         self.read_file = askopenfile()
         if self.read_file:
             self.file_chose['text'] = u'已选择文件: %s' % self.read_file.name
             return self.read_file.name
+
+    def test(self):
+        if self.form_check():
+            print self.username.get(), self.passwd.get(), self.read_file, self.delimiter.get()
+            for i in range(100):
+                self.write_num['text'] = u'已写入: %s    ' % i
+                self.tb.insert(tk.END, '- ' * 40 )
+                self.tb.insert(tk.END, '%s\n ' % i)
+                self.tb.update()
+                self.tb.see(tk.END)
 
     def run(self):
         rtc = self.form_check()

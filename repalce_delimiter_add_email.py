@@ -102,7 +102,6 @@ class FileHandle:
         print self.letter_pos
 
     def form_check(self):
-        rtc = 0
         if not self.read_file:
             tkMessageBox.showerror(message='请选择文件')
             return 0
