@@ -20,19 +20,19 @@ class IcloudScan:
         self.write_queue = Queue.Queue()
         self.html = requests.session()
         self.html.headers.update({
-            'Host':' idmsa.apple.com',
-            'Connection':' keep-alive',
-            'Content-Length':' 101',
-            'X-Apple-Widget-Key':' 83545bf919730e51dbfba24e7e8a78d2',
-            'Origin': ' https://idmsa.apple.com',
-            'X-Apple-I-FD-Client-Info': ' {"U":"Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.106 Safari/537.36","L":"zh-CN","Z":"GMT+08:00","V":"1.1","F":"N0a44j1e3NlY5BSo9z4ofjb75PaK4Vpjt.gEngMQEjZrVglE4Ww.GEFF0Yz3ccbbJYMLgiPFU77qZoOSix5ezdstlYysrhsui65AQnKA15nW0vLG9mhORoVidPZW2AUMnGWVQdgMVQdg1kzoMpwoNJ9z4oYYLzZ1kzDlSgyyIT1n3wL6k03x0.5EwHXXTSHCSPmtd0wVYPIG_qvoPfybYb5EvYTrYesRNhjCJg7QD36hO3f9p_nH1uzjkD6myjaY2hDpBtOtJJIqSI6KUMnGWpwoNSUC56MnGW87gq1HACVcOJVB38cTjQhUfSHolk2dUf.j7J1gBZEMgzH_y3Cmx_B4WugMJeqDxp.jV2pNk0ug97.Dv64KxN4t1VKWZWu_JzK9zHkcCmx_B4W1kl1BQLz4mvmfTT9oaSumKkpjlRiwerbXh8bUu_LzQW5BNv_BBNlYCa1nkBMfs.9g."}',
-            'User-Agent': ' Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.106 Safari/537.36',
-            'Content-Type': ' application/json',
-            'Accept': ' application/json, text/javascript, */*; q=0.01',
-            'X-Requested-With': ' XMLHttpRequest',
-            'Referer':' https://idmsa.apple.com/appleauth/auth/signin?widgetKey=83545bf919730e51dbfba24e7e8a78d2&locale=zh_CN&font=sf',
-            'Accept-Encoding': ' gzip, deflate, br',
-            'Accept-Language': ' zh-CN,zh;q=0.8',
+            'Host': 'idmsa.apple.com',
+            'Connection': 'keep-alive',
+            'Content-Length': '101',
+            'X-Apple-Widget-Key': '83545bf919730e51dbfba24e7e8a78d2',
+            'Origin': 'https://idmsa.apple.com',
+            'X-Apple-I-FD-Client-Info': '{"U":"Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.106 Safari/537.36","L":"zh-CN","Z":"GMT+08:00","V":"1.1","F":"N0a44j1e3NlY5BSo9z4ofjb75PaK4Vpjt.gEngMQEjZrVglE4Ww.GEFF0Yz3ccbbJYMLgiPFU77qZoOSix5ezdstlYysrhsui65AQnKA15nW0vLG9mhORoVidPZW2AUMnGWVQdgMVQdg1kzoMpwoNJ9z4oYYLzZ1kzDlSgyyIT1n3wL6k03x0.5EwHXXTSHCSPmtd0wVYPIG_qvoPfybYb5EvYTrYesRNhjCJg7QD36hO3f9p_nH1uzjkD6myjaY2hDpBtOtJJIqSI6KUMnGWpwoNSUC56MnGW87gq1HACVcOJVB38cTjQhUfSHolk2dUf.j7J1gBZEMgzH_y3Cmx_B4WugMJeqDxp.jV2pNk0ug97.Dv64KxN4t1VKWZWu_JzK9zHkcCmx_B4W1kl1BQLz4mvmfTT9oaSumKkpjlRiwerbXh8bUu_LzQW5BNv_BBNlYCa1nkBMfs.9g."}',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.106 Safari/537.36',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Referer': 'https://idmsa.apple.com/appleauth/auth/signin?widgetKey=83545bf919730e51dbfba24e7e8a78d2&locale=zh_CN&font=sf',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Accept-Language': 'zh-CN,zh;q=0.8',
         })
 
     def read_file(self):
@@ -65,13 +65,15 @@ class IcloudScan:
                 })
                 while flag < 4:
                     try:
-                        result = json.loads(
-                            self.html.post(
-                                self.url,
-                                data=requests_data,
-                                verify=True
-                            ).text
-                        )
+                        data = self.html.post(self.url, data=requests_data, verify=True).text
+                        result = json.loads(data)
+                        # result = json.loads(
+                        #     self.html.post(
+                        #         self.url,
+                        #         data=requests_data,
+                        #         verify=True
+                        #     ).text
+                        # )
                         flag = 4
                     except requests.exceptions.ConnectionError:
                         print '[Error]: The %s time to try again!' % flag

