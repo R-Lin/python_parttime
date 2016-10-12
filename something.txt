@@ -1,0 +1,1 @@
+tkinter text 实时打印

