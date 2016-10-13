@@ -100,7 +100,7 @@ class FileHandle:
             self.passwd.set(passwd)
 
     def dial_call(self):
-        with open('dia_record.txt') as f:
+        with open('dia_record.txt', 'w') as f:
             f.write('%s %s' % (self.username.get(), self.passwd.get()))
 
         name = "¿í´øÁ¬½Ó"
